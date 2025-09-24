@@ -1,7 +1,8 @@
-use sdl2::pixels::Color;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::Duration;
+use sdl2::Sdl;
 
 fn main() -> Result<(), String> {
     // initialize SDL2
@@ -10,16 +11,23 @@ fn main() -> Result<(), String> {
 
     // create window
     let window = video_subsystem
-        .window("Hello SDL2 (Rust)", 640, 480)
+        .window("CHIP-8 Emulator", 512, 256)
         .position_centered()
         .build()
         .map_err(|e| e.to_string())?;
 
     // create renderer
-    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+    let mut canvas = window
+        .into_canvas()
+        .accelerated()
+        .build()
+        .map_err(|e| e.to_string())?;
+    let texture_creator = canvas.texture_creator();
+    let texture = texture_creator
+        .create_texture_streaming(PixelFormatEnum::RGBA8888, 64, 32)
+        .map_err(|e| e.to_string())?;
     let mut event_pump = sdl_context.event_pump()?;
     'running: loop {
-        // handle events
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } 
