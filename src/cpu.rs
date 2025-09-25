@@ -1,27 +1,54 @@
+use std::mem;
+
+pub const FONTSET: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+];
+
 pub struct CPU {
     // CPU fields here
+    opcode: u16,
+    memory: [u8; 4096],
+    graphics: [u8; 64 * 32],
     registers: [u8; 16],
+    index: u16,
     pc: u16,
-    i: u16,
     delay_timer: u8,
     sound_timer: u8,
-    stack: Vec<u16>,
+    stack: [u16; 16],
+    sp: u8,
+    keys: [u8; 16],
 }
-
 impl CPU {
     pub fn new() -> Self {
-        CPU {
+        let mut cpu = CPU {
+            opcode: 0,
+            memory: [0; 4096],
+            graphics: [0; 64 * 32],
             registers: [0; 16],
+            index: 0,
             pc: 0x200,
-            i: 0,
             delay_timer: 0,
             sound_timer: 0,
-            stack: Vec::new(),
-        }
+            stack: [0; 16],
+            sp: 0,
+            keys: [0; 16],
+        };
+        cpu.memory[0..FONTSET.len()].copy_from_slice(&FONTSET);
+        cpu
     }
-
-    pub fn init(&mut self) -> Result<(), String> {
-        // initialization logic
-        Ok(())
-    }
-}
+} 
