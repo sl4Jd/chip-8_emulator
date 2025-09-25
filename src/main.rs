@@ -1,17 +1,18 @@
+use std::time::Duration;
+use std::env;
+use std::process;
+use std::path::Path;
+use std::fs::File;
+use std::io::{self, Read};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::event::Event;
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 use sdl2::keyboard::Keycode;
-use std::time::Duration;
-use std::env;
-use std::process;
 use sdl2::Sdl;
 
 mod cpu;
 use cpu::CPU;
-
-static mut CPU_INSTANCE: Option<Box<CPU>> = None;
 
 static mut SDL_CONTEXT: Option<Sdl> = None;
 static mut CANVAS: Option<Canvas<Window>> = None;
@@ -67,7 +68,27 @@ const KEYMAP: [sdl2::keyboard::Scancode; 16] = [
     sdl2::keyboard::Scancode::V,
 ];
 
-fn main() {  
+pub fn load_rom<P: AsRef<Path>>(filename: P, cpu: &mut CPU) -> io::Result<()> {
+    let mut file = File::open(filename)?;
+    println!("Loading ROM!");
+
+    // Get file size
+    let size = file.metadata()?.len() as usize;
+    println!("ROM File Size: {}", size);
+
+    // Read the ROM
+    let mut buffer = Vec::with_capacity(size);
+    file.read_to_end(&mut buffer)?;
+
+    // Copy ROM into memory starting at 0x200
+    let start = 0x200;
+    for (i, &byte) in buffer.iter().enumerate() {
+        cpu.memory[start + i] = byte;
+    }
+    println!("Loading ROM Succeeded!");
+    Ok(())
+}
+fn main() {
     let slow_factor = 1;
 
     let mut args = env::args();
@@ -86,8 +107,11 @@ fn main() {
 
     // Initialize CPU
     let mut cpu = Box::new(CPU::new());
-    unsafe {
-        CPU_INSTANCE = Some(cpu);
+    // Load ROM
+    if let Err(err) = load_rom(&filename, &mut cpu) {
+        eprintln!("Failed to load ROM: {}", err);
+        return;
     }
 }
+
 

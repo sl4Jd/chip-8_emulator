@@ -1,5 +1,3 @@
-use std::mem;
-
 pub const FONTSET: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -21,17 +19,17 @@ pub const FONTSET: [u8; 80] = [
 
 pub struct CPU {
     // CPU fields here
-    opcode: u16,
-    memory: [u8; 4096],
-    graphics: [u8; 64 * 32],
-    registers: [u8; 16],
-    index: u16,
-    pc: u16,
-    delay_timer: u8,
-    sound_timer: u8,
-    stack: [u16; 16],
-    sp: u8,
-    keys: [u8; 16],
+    pub opcode: u16,
+    pub memory: [u8; 4096],
+    pub graphics: [u8; 64 * 32],
+    pub registers: [u8; 16],
+    pub index: u16,
+    pub pc: u16,
+    pub delay_timer: u8,
+    pub sound_timer: u8,
+    pub stack: [u16; 16],
+    pub sp: u8,
+    pub keys: [u8; 16],
 }
 impl CPU {
     pub fn new() -> Self {
