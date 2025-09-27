@@ -142,11 +142,14 @@ fn main() {
                 _ => {}
             }
         }
-        // Emulate one cycle
-        cpu.emulate_cycle();
+        // Emulate cpu cycle
+        if !cpu.emulate_cycle() {
+            break 'run;  // stop loop when emulate_cycle signals end
+        }
 
         std::thread::sleep(Duration::from_millis(16 * slow_factor));
     }
+    deinit();
 }
 
 

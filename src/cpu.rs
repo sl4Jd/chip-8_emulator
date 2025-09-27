@@ -51,7 +51,11 @@ impl CPU {
         cpu.memory[0..FONTSET.len()].copy_from_slice(&FONTSET);
         cpu
     }
-    pub fn emulate_cycle(&mut self) {
+    pub fn emulate_cycle(&mut self) -> bool {
+        if self.pc > 0xFFF {
+            return false;
+        }
+
         // Fetch Opcode
         self.opcode = ((self.memory[self.pc as usize] as u16) << 8)
             | (self.memory[(self.pc + 1) as usize] as u16);
@@ -62,7 +66,6 @@ impl CPU {
                 0x00E0 => {
                     // Clear the display
                     self.graphics = [0; 64 * 32];
-                    self.pc += 2;
                 }
                 0x00EE => {
                     // Return from subroutine
@@ -77,25 +80,49 @@ impl CPU {
             },
             0x1000 => {
                 // Jump to address NNN
-                let addr = self.opcode & 0x0FFF;
-                self.pc = addr;
+                self.pc = self.opcode & 0x0FFF;
             }
             0x2000 => {
-                // Call subroutine at NNN
-                let addr = self.opcode & 0x0FFF;
+                // Call NNN, stack pushed
                 self.stack[self.sp as usize] = self.pc;
                 self.sp += 1;
-                self.pc = addr;
+                self.pc = self.opcode & 0x0FFF;
             }
             0x3000 => {
                 // Skip next instruction if Vx == NN
                 let x = ((self.opcode & 0x0F00) >> 8) as usize;
-                let nn = (self.opcode & 0x00FF) as u8;
-                if self.registers[x] == nn {
-                    self.pc += 4;
-                } else {
+                if self.registers[x] == (self.opcode & 0x00FF) as u8 {
+                    self.pc += 2;
+                } 
+                self.pc += 2;
+            }
+            0x4000 => {
+                // Skip next instruction if Vx != NN
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                if self.registers[x] != (self.opcode & 0x00FF) as u8 {
                     self.pc += 2;
                 }
+            }
+            0x5000 => {
+                // Skip next instruction if Vx == Vy
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                let y = ((self.opcode & 0x00F0) >> 4) as usize;
+                if self.registers[x] == self.registers[y] {
+                    self.pc += 2;
+                }
+                self.pc += 2;
+            }
+            0x6000 => {
+                // Set Vx = NN
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                self.registers[x] = (self.opcode & 0x00FF) as u8;
+                self.pc += 2;
+            }
+            0x7000 => {
+                // Set Vx = Vx + NN
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                self.registers[x] = self.registers[x].wrapping_add((self.opcode & 0x00FF) as u8);
+                self.pc += 2;
             }
             // More opcodes to be implemented...
             _ => {
@@ -114,5 +141,6 @@ impl CPU {
             }
             self.sound_timer -= 1;
         }
+        true
     }
 } 
