@@ -30,6 +30,8 @@ pub struct CPU {
     pub stack: [u16; 16],
     pub sp: u8,
     pub keys: [u8; 16],
+
+
 }
 impl CPU {
     pub fn new() -> Self {
@@ -48,5 +50,69 @@ impl CPU {
         };
         cpu.memory[0..FONTSET.len()].copy_from_slice(&FONTSET);
         cpu
+    }
+    pub fn emulate_cycle(&mut self) {
+        // Fetch Opcode
+        self.opcode = ((self.memory[self.pc as usize] as u16) << 8)
+            | (self.memory[(self.pc + 1) as usize] as u16);
+        
+        // Decode and Execute Opcode
+        match self.opcode & 0xF000 {
+            0x0000 => match self.opcode & 0x00FF {
+                0x00E0 => {
+                    // Clear the display
+                    self.graphics = [0; 64 * 32];
+                    self.pc += 2;
+                }
+                0x00EE => {
+                    // Return from subroutine
+                    self.sp -= 1;
+                    self.pc = self.stack[self.sp as usize];
+                    self.pc += 2;
+                }
+                _ => {
+                    println!("Unknown opcode: {:#X}", self.opcode);
+                    self.pc += 2;
+                }
+            },
+            0x1000 => {
+                // Jump to address NNN
+                let addr = self.opcode & 0x0FFF;
+                self.pc = addr;
+            }
+            0x2000 => {
+                // Call subroutine at NNN
+                let addr = self.opcode & 0x0FFF;
+                self.stack[self.sp as usize] = self.pc;
+                self.sp += 1;
+                self.pc = addr;
+            }
+            0x3000 => {
+                // Skip next instruction if Vx == NN
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                let nn = (self.opcode & 0x00FF) as u8;
+                if self.registers[x] == nn {
+                    self.pc += 4;
+                } else {
+                    self.pc += 2;
+                }
+            }
+            // More opcodes to be implemented...
+            _ => {
+                println!("Unknown opcode: {:#X}", self.opcode);
+                self.pc += 2;
+            }
+        }
+
+        // Update timers
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
+        if self.sound_timer > 0 {
+            if self.sound_timer == 1 {
+                // Beep sound can be implemented here
+            }
+            self.sound_timer -= 1;
+        }
     }
 } 

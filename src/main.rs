@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::thread;
 use std::env;
 use std::process;
 use std::path::Path;
@@ -9,16 +10,16 @@ use sdl2::event::Event;
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 use sdl2::keyboard::Keycode;
+use sdl2::keyboard::Scancode;
 use sdl2::Sdl;
 
 mod cpu;
 use cpu::CPU;
 
-static mut SDL_CONTEXT: Option<Sdl> = None;
 static mut CANVAS: Option<Canvas<Window>> = None;
 static mut TEXTURE: Option<Texture<'static>> = None;
 
-fn init(){
+fn init() -> Sdl {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
@@ -36,16 +37,15 @@ fn init(){
         .create_texture_streaming(PixelFormatEnum::RGBA8888, 64, 32)
         .unwrap();
     unsafe{
-        SDL_CONTEXT = Some(sdl_context);
         CANVAS = Some(canvas);
         TEXTURE = Some(std::mem::transmute::<Texture<'_>, Texture<'static>>(texture));
     }
+    sdl_context
 }
 fn deinit() {
     unsafe{
         CANVAS = None; 
         TEXTURE = None;
-        SDL_CONTEXT = None;
     }
 }
 
@@ -103,14 +103,49 @@ fn main() {
     };
 
     // Initialize SDL2
-    init();
-
+    let sdl_context = init();
+    let mut event_pump = sdl_context.event_pump().unwrap();
     // Initialize CPU
     let mut cpu = Box::new(CPU::new());
     // Load ROM
     if let Err(err) = load_rom(&filename, &mut cpu) {
         eprintln!("Failed to load ROM: {}", err);
         return;
+    }
+
+    'run: loop {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } => break 'run,
+
+                Event::KeyDown { scancode: Some(sc), .. } => {
+                    if sc == Scancode::Escape {
+                        break 'run;
+                    }
+
+                    // check if sc is in your KEYMAP
+                    for (i, &mapped) in KEYMAP.iter().enumerate() {
+                        if sc == mapped {
+                            cpu.keys[i] = 1;
+                        }
+                    }
+                }
+
+                Event::KeyUp { scancode: Some(sc), .. } => {
+                    for (i, &mapped) in KEYMAP.iter().enumerate() {
+                        if sc == mapped {
+                            cpu.keys[i] = 0;
+                        }
+                    }
+                }
+
+                _ => {}
+            }
+        }
+        // Emulate one cycle
+        cpu.emulate_cycle();
+
+        std::thread::sleep(Duration::from_millis(16 * slow_factor));
     }
 }
 
