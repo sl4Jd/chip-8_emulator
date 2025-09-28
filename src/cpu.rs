@@ -68,6 +68,7 @@ impl CPU {
                 0x00E0 => {
                     // Clear the display
                     self.graphics = [0; 64 * 32];
+                    self.pc += 2;
                 }
                 0x00EE => {
                     // Return from subroutine
@@ -104,6 +105,7 @@ impl CPU {
                 if self.registers[x] != (self.opcode & 0x00FF) as u8 {
                     self.pc += 2;
                 }
+                self.pc += 2;
             }
             0x5000 => {
                 // Skip next instruction if Vx == Vy
@@ -179,6 +181,7 @@ impl CPU {
                         println!("Unknown opcode: {:#X}", self.opcode);
                     }
                 }
+                self.pc += 2;
             }
             0x9000 => {
                 // Skip next instruction if Vx != Vy
@@ -311,7 +314,7 @@ impl CPU {
                 self.pc += 2;
             }
         }
-        
+
         // Update timers
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
