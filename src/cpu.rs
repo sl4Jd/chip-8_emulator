@@ -1,3 +1,5 @@
+use rand::random;
+
 pub const FONTSET: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -122,6 +124,86 @@ impl CPU {
                 // Set Vx = Vx + NN
                 let x = ((self.opcode & 0x0F00) >> 8) as usize;
                 self.registers[x] = self.registers[x].wrapping_add((self.opcode & 0x00FF) as u8);
+                self.pc += 2;
+            }
+            0x8000 => {
+                // ALU operations
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                let y = ((self.opcode & 0x00F0) >> 4) as usize;
+                match self.opcode & 0x000F {
+                    0 => {
+                        // Set Vx = Vy
+                        self.registers[x] = self.registers[y];
+                    }
+                    1 => {
+                        // Set Vx = Vx OR Vy
+                        self.registers[x] |= self.registers[y];
+                    }
+                    2 => {
+                        // Set Vx = Vx AND Vy
+                        self.registers[x] &= self.registers[y];
+                    }
+                    3 => {
+                        // Set Vx = Vx XOR Vy
+                        self.registers[x] ^= self.registers[y];
+                    }
+                    4 => {
+                        // Set Vx = Vx + Vy, set VF = carry
+                        let (sum, carry) = self.registers[x].overflowing_add(self.registers[y]);
+                        self.registers[x] = sum;
+                        self.registers[0xF] = if carry { 1 } else { 0 };
+                    }
+                    5 => {
+                        // Set Vx = Vx - Vy, set VF = NOT borrow
+                        let (diff, borrow) = self.registers[x].overflowing_sub(self.registers[y]);
+                        self.registers[x] = diff;
+                        self.registers[0xF] = if borrow { 0 } else { 1 };
+                    }
+                    6 => {
+                        // Set Vx = Vx shift right 1
+                        self.registers[0xF] = self.registers[x] & 0x1;
+                        self.registers[x] >>= 1;
+                    }
+                    7 => {
+                        // Set Vx = Vy - Vx, set VF = NOT borrow
+                        let (diff, borrow) = self.registers[y].overflowing_sub(self.registers[x]);
+                        self.registers[x] = diff;
+                        self.registers[0xF] = if borrow { 0 } else { 1 };
+                    }
+                    0xE => {
+                        // Set Vx = Vx shift left 1
+                        self.registers[0xF] = (self.registers[x] & 0x80) >> 7;
+                        self.registers[x] <<= 1;
+                    }
+                    _ => {
+                        println!("Unknown opcode: {:#X}", self.opcode);
+                    }
+                }
+            }
+            0x9000 => {
+                // Skip next instruction if Vx != Vy
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                let y = ((self.opcode & 0x00F0) >> 4) as usize;
+                if self.registers[x] != self.registers[y] {
+                    self.pc += 2;
+                }
+                self.pc += 2;
+            }
+            0xA000 => {
+                // Set I = NNN
+                self.index = self.opcode & 0x0FFF;
+                self.pc += 2;
+            }
+            0xB000 => {
+                // Jump to address NNN + V0
+                self.pc = (self.opcode & 0x0FFF) + self.registers[0] as u16;
+            }
+            0xC000 => {
+                // Set Vx = random byte AND NN
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                let nn = (self.opcode & 0x00FF) as u8;
+                let rand_byte: u8 = random();
+                self.registers[x] = rand_byte & nn;
                 self.pc += 2;
             }
             // More opcodes to be implemented...
