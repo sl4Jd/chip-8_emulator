@@ -13,9 +13,27 @@ use sdl2::video;
 use sdl2::video::Window;
 use sdl2::keyboard::Scancode;
 use sdl2::Sdl;
+use sdl2::audio::AudioCallback;
 
 mod cpu;
 use cpu::CPU;
+
+struct SquareWave {
+    phase_inc: f32,
+    phase: f32,
+    volume: i16,
+}
+
+impl AudioCallback for SquareWave {
+    type Channel = i16; // mono output
+
+    fn callback(&mut self, out: &mut [i16]) {
+        for x in out.iter_mut() {
+            *x = if self.phase < 0.5 { self.volume } else { -self.volume };
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+    }
+}
 
 fn init() -> (Sdl, TextureCreator<video::WindowContext>, Canvas<Window>) {
     let sdl_context = sdl2::init().unwrap();
@@ -117,7 +135,25 @@ fn main() {
         eprintln!("Failed to load ROM: {}", err);
         return;
     }
-    canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
+
+    let audio_subsystem = sdl_context.audio().unwrap();
+    // Audio
+    let desired_spec = sdl2::audio::AudioSpecDesired {
+        freq: Some(44100),
+        channels: Some(1), // mono
+        samples: None,
+    };
+
+    let device = audio_subsystem
+        .open_playback(None, &desired_spec, |spec| {
+            SquareWave {
+                phase_inc: 440.0 / spec.freq as f32,
+                phase: 0.0,
+                volume: 3000,
+            }
+        })
+        .unwrap();
+
     'run: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -152,7 +188,11 @@ fn main() {
         if !cpu.emulate_cycle() {
             break 'run;  // stop loop when emulate_cycle signals end
         }
-    
+        if cpu.sound_timer == 1 {
+            device.resume();
+        } else {
+            device.pause(); 
+        }
         canvas.clear();
         // Update texture with current graphics state
         build_texture(&cpu, &mut texture);

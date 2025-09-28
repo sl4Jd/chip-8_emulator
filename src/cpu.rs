@@ -308,7 +308,6 @@ impl CPU {
                 }
                 self.pc += 2;
             }
-            // More opcodes to be implemented...
             _ => {
                 println!("Unknown opcode: {:#X}", self.opcode);
                 self.pc += 2;
@@ -320,9 +319,6 @@ impl CPU {
             self.delay_timer -= 1;
         }
         if self.sound_timer > 0 {
-            if self.sound_timer == 1 {
-                // Beep sound can be implemented here
-            }
             self.sound_timer -= 1;
         }
         true
