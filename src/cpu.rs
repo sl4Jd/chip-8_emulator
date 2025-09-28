@@ -206,13 +206,112 @@ impl CPU {
                 self.registers[x] = rand_byte & nn;
                 self.pc += 2;
             }
+            0xD000 => {
+                // Draw n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision
+                let x = self.registers[((self.opcode & 0x0F00) >> 8) as usize] as u16;
+                let y = self.registers[((self.opcode & 0x00F0) >> 4) as usize] as u16;
+                let height = (self.opcode & 0x000F) as u16;
+                self.registers[0xF] = 0;
+
+                for y_vert in 0..height {
+                    let pixel = self.memory[(self.index + y_vert) as usize];
+                    for x_vert in 0..8 {
+                        if (pixel & (0x80 >> x_vert)) != 0 {
+                            let x_coord = (x + x_vert) % 64;
+                            let y_coord = (y + y_vert) % 32;
+                            let index = (x_coord + (y_coord * 64)) as usize;
+                            if self.graphics[index] == 1 {
+                                // Collision detected
+                                self.registers[0xF] = 1;
+                            }
+                            self.graphics[index] ^= 1;
+                        }
+                    }
+                }
+                self.pc += 2;
+            }
+            0xE000 => {
+                // Miscellaneous opcodes
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                match self.opcode & 0x00FF {
+                    0x9E => {
+                        // Skip next instruction if key with the value of Vx is pressed
+                        if self.keys[self.registers[x] as usize] != 0 {
+                            self.pc += 2;
+                        }
+                        self.pc += 2;
+                    }
+                    0xA1 => {
+                        // Skip next instruction if key with the value of Vx is not pressed
+                        if self.keys[self.registers[x] as usize] == 0 {
+                            self.pc += 2;
+                        }
+                        self.pc += 2;
+                    }
+                    _ => {
+                        println!("Unknown opcode: {:#X}", self.opcode);
+                        self.pc += 2;
+                    }
+                }
+            }
+            0xF000 => {
+                // also miscellaneous opcodes
+                let x = ((self.opcode & 0x0F00) >> 8) as usize;
+                let m = self.opcode & 0x00FF;
+
+                if m == 0x07 {
+                    self.registers[x] = self.delay_timer;
+                } else if m == 0x0A {
+                    // Store the value of the key in Vx if pressed
+                    let mut key_pressed = false;
+                    for (i, &key) in self.keys.iter().enumerate() {
+                        if key != 0 {
+                            self.registers[x] = i as u8;
+                            key_pressed = true;
+                            break;
+                        }
+                    }
+                    if !key_pressed {
+                        return true; // Skip this cycle and wait for a key press
+                    }
+                } else if m == 0x15 {
+                    self.delay_timer = self.registers[x];
+                } else if m == 0x18 {
+                    self.sound_timer = self.registers[x];
+                } else if m == 0x1E {
+                    // I = I + Vx
+                    self.index = self.index.wrapping_add(self.registers[x] as u16);
+                } else if m == 0x29 {
+                    // I = location of sprite for digit Vx
+                    self.index = (self.registers[x] as u16) * 5;
+                } else if m == 0x33 {
+                    // Store BCD representation of Vx in memory locations I, I+1, and I+2
+                    let value = self.registers[x];
+                    self.memory[self.index as usize] = value / 100;
+                    self.memory[(self.index + 1) as usize] = (value / 10) % 10;
+                    self.memory[(self.index + 2) as usize] = value % 10;
+                } else if m == 0x55 {
+                    // Store registers V0 through Vx in memory starting at location I
+                    for i in 0..=x {
+                        self.memory[(self.index + i as u16) as usize] = self.registers[i];
+                    }
+                } else if m == 0x65 {
+                    // Read registers V0 through Vx from memory starting at location I
+                    for i in 0..=x {
+                        self.registers[i] = self.memory[(self.index + i as u16) as usize];
+                    }
+                } else {
+                    println!("Unknown opcode: {:#X}", self.opcode);
+                }
+                self.pc += 2;
+            }
             // More opcodes to be implemented...
             _ => {
                 println!("Unknown opcode: {:#X}", self.opcode);
                 self.pc += 2;
             }
         }
-
+        
         // Update timers
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
