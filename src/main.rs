@@ -4,6 +4,7 @@ use std::env;
 use std::path::Path;
 use std::fs::File;
 use std::io::{self, Read};
+use std::time::Instant;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::render::TextureCreator;
@@ -109,8 +110,6 @@ pub fn build_texture(system: &CPU, texture: &mut Texture) {
 }
 
 fn main() {
-    let slow_factor = 1;
-
     let mut args = env::args();
     args.next(); // skip executable name
 
@@ -136,8 +135,8 @@ fn main() {
         return;
     }
 
-    let audio_subsystem = sdl_context.audio().unwrap();
     // Audio
+    let audio_subsystem = sdl_context.audio().unwrap();
     let desired_spec = sdl2::audio::AudioSpecDesired {
         freq: Some(44100),
         channels: Some(1), // mono
@@ -154,7 +153,18 @@ fn main() {
         })
         .unwrap();
 
+    // CPU and Timer frequencies
+    let cycle_duration = Duration::from_secs_f64(1.0 / 500 as f64);
+    let timer_duration = Duration::from_secs_f64(1.0 / 60 as f64);
+
+    let mut last_cycle_time = Instant::now();
     'run: loop {
+        let cycle = Instant::now();
+        // Emulate cpu cycle
+        if !cpu.emulate_cycle() {
+            break 'run;  // stop loop when emulate_cycle signals end
+        }
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'run,
@@ -168,7 +178,6 @@ fn main() {
                     for (i, &mapped) in KEYMAP.iter().enumerate() {
                         if sc == mapped {
                             cpu.keys[i] = 1;
-                            println!("Key {} pressed", i);
                         }
                     }
                 }
@@ -184,29 +193,40 @@ fn main() {
                 _ => {}
             }
         }
-        // Emulate cpu cycle
-        if !cpu.emulate_cycle() {
-            break 'run;  // stop loop when emulate_cycle signals end
+
+        // Update at 60Hz
+        if last_cycle_time.elapsed() >= timer_duration {
+            // Update timers
+            if cpu.delay_timer > 0 {
+                cpu.delay_timer -= 1;
+            }
+            if cpu.sound_timer > 0 {
+                device.resume(); 
+                cpu.sound_timer -= 1;
+            }
+            else {device.pause();}
+
+            last_cycle_time = Instant::now();
+
+            // Render graphics
+            canvas.clear();
+            // Update texture with current graphics state
+            build_texture(&cpu, &mut texture);
+
+            // Destination rectangle (scale CHIP-8 64x32 to 512x256)
+            let dest = Rect::new(0, 0, 512, 256);
+
+            // Copy the texture to the canvas
+            canvas.copy(&texture, None, Some(dest)).unwrap();
+
+            // Present the updated frame
+            canvas.present();
         }
-        if cpu.sound_timer == 1 {
-            device.resume();
-        } else {
-            device.pause(); 
+
+        let elapsed = cycle.elapsed();
+        if elapsed < cycle_duration {
+            thread::sleep(cycle_duration - elapsed);
         }
-        canvas.clear();
-        // Update texture with current graphics state
-        build_texture(&cpu, &mut texture);
-
-        // Destination rectangle (scale CHIP-8 64x32 to 512x256)
-        let dest = Rect::new(0, 0, 512, 256);
-
-        // Copy the texture to the canvas
-        canvas.copy(&texture, None, Some(dest)).unwrap();
-
-        // Present the updated frame
-        canvas.present();
-
-    thread::sleep(Duration::from_millis(16 * slow_factor));
     }
 }
 
